@@ -1,0 +1,32 @@
+{
+  "name": "@esyt/moonify",
+  "version": "0.1.2",
+  "description": "Terminal moon phase calendar built with Open TUI",
+  "module": "src/index.tsx",
+  "type": "module",
+  "bin": {
+    "moonify": "bin/moonify.ts"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "dev": "bun run --watch src/index.tsx",
+    "start": "bun run src/index.tsx",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.95",
+    "@opentui/react": "^0.1.95",
+    "@types/node": "^25.5.2",
+    "react": "^19.2.4"
+  }
+}
