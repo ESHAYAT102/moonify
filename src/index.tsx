@@ -7,10 +7,12 @@ import {
 } from "@opentui/react";
 import { useState } from "react";
 
-const SIDEBAR_MIN_WIDTH = 30;
+const SIDEBAR_MIN_WIDTH = 26;
 const SIDEBAR_MAX_WIDTH = 38;
-const MIN_TERMINAL_WIDTH = 120;
-const MIN_TERMINAL_HEIGHT = 41;
+const MIN_TERMINAL_WIDTH = 52;
+const MIN_TERMINAL_HEIGHT = 18;
+const SIDEBAR_BREAKPOINT = 88;
+const COMPACT_HEIGHT = 28;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SYNODIC_MONTH = 29.53058867;
 const KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14, 0);
@@ -287,10 +289,15 @@ function Sidebar({
 function CalendarPane({
   cells,
   viewMonth,
+  compact,
 }: {
   cells: CalendarCell[][];
   viewMonth: Date;
+  compact: boolean;
 }) {
+  const weekGap = compact ? 0 : 1;
+  const cellMinHeight = compact ? 2 : 5;
+
   return (
     <box
       flexGrow={1}
@@ -318,14 +325,14 @@ function CalendarPane({
         </box>
       </box>
 
-      <box flexGrow={1} flexDirection="column" gap={1}>
+      <box flexGrow={1} flexDirection="column" gap={weekGap}>
         {cells.map((week, weekIndex) => (
           <box
             key={weekIndex}
             flexGrow={1}
             flexDirection="row"
-            gap={1}
-            minHeight={5}
+            gap={weekGap}
+            minHeight={cellMinHeight}
           >
             {week.map((cell) => {
               const fg = cell.inCurrentMonth ? "#e5eefb" : "#6c7b92";
@@ -342,9 +349,9 @@ function CalendarPane({
                   height="100%"
                   border
                   borderColor={borderColor}
-                  minHeight={5}
-                  paddingLeft={1}
-                  paddingRight={1}
+                  minHeight={cellMinHeight}
+                  paddingLeft={compact ? 0 : 1}
+                  paddingRight={compact ? 0 : 1}
                   flexDirection="column"
                 >
                   <text
@@ -357,9 +364,11 @@ function CalendarPane({
                   >
                     {String(cell.date.getUTCDate()).padStart(2, "0")}
                   </text>
-                  <text fg={cell.isSelected ? "#fff1a8" : "#b6c2d9"}>
-                    {cell.moon.glyph}
-                  </text>
+                  {!compact && (
+                    <text fg={cell.isSelected ? "#fff1a8" : "#b6c2d9"}>
+                      {cell.moon.glyph}
+                    </text>
+                  )}
                 </box>
               );
             })}
@@ -371,6 +380,8 @@ function CalendarPane({
 }
 
 function TooSmallWarning({ width, height }: { width: number; height: number }) {
+  const panelWidth = Math.max(20, Math.min(56, width - 2));
+
   return (
     <box
       width={width}
@@ -382,7 +393,7 @@ function TooSmallWarning({ width, height }: { width: number; height: number }) {
         border
         borderColor="#5a6b84"
         padding={1}
-        width={56}
+        width={panelWidth}
         flexDirection="column"
         gap={1}
       >
@@ -410,13 +421,17 @@ function App() {
 
   const today = todayUtc();
   const moon = getMoonInfo(selectedDate);
-  const sidebarWidth = Math.max(
-    SIDEBAR_MIN_WIDTH,
-    Math.min(SIDEBAR_MAX_WIDTH, Math.floor(width * 0.3)),
-  );
   const cells = buildCalendar(viewMonth, selectedDate, today);
   const terminalTooSmall =
     width < MIN_TERMINAL_WIDTH || height < MIN_TERMINAL_HEIGHT;
+  const showSidebar = width >= SIDEBAR_BREAKPOINT && height >= COMPACT_HEIGHT;
+  const compact = width < SIDEBAR_BREAKPOINT || height < COMPACT_HEIGHT;
+  const sidebarWidth = showSidebar
+    ? Math.max(
+        SIDEBAR_MIN_WIDTH,
+        Math.min(SIDEBAR_MAX_WIDTH, Math.floor(width * 0.3)),
+      )
+    : 0;
 
   const syncSelection = (date: Date) => {
     setSelectedDate(date);
@@ -452,8 +467,10 @@ function App() {
 
   return (
     <box width={width} height={height} flexDirection="row" gap={1}>
-      <Sidebar moon={moon} selectedDate={selectedDate} width={sidebarWidth} />
-      <CalendarPane cells={cells} viewMonth={viewMonth} />
+      {showSidebar && (
+        <Sidebar moon={moon} selectedDate={selectedDate} width={sidebarWidth} />
+      )}
+      <CalendarPane cells={cells} viewMonth={viewMonth} compact={compact} />
     </box>
   );
 }
