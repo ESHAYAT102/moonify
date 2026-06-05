@@ -1,4 +1,4 @@
-import { createCliRenderer, TextAttributes } from "@opentui/core";
+import { createCliRenderer, MouseButton, TextAttributes } from "@opentui/core";
 import {
   createRoot,
   useKeyboard,
@@ -7,12 +7,19 @@ import {
 } from "@opentui/react";
 import { useState } from "react";
 
-const SIDEBAR_MIN_WIDTH = 26;
+const SIDEBAR_MIN_WIDTH = 18;
 const SIDEBAR_MAX_WIDTH = 38;
-const MIN_TERMINAL_WIDTH = 52;
-const MIN_TERMINAL_HEIGHT = 18;
-const SIDEBAR_BREAKPOINT = 88;
+const TOO_SMALL_TERMINAL_WIDTH = 98;
+const TOO_SMALL_TERMINAL_HEIGHT = 25;
+const SIDEBAR_BREAKPOINT = 120;
+const FIXED_WIDTH_CALENDAR_BREAKPOINT = 88;
 const COMPACT_HEIGHT = 28;
+const CALENDAR_CELL_WIDTH = 7;
+const CALENDAR_CELL_HEIGHT = 4;
+const DENSE_CALENDAR_HEIGHT = 39;
+const DENSE_CALENDAR_CELL_HEIGHT = 4;
+const TIGHT_CALENDAR_HEIGHT = 36;
+const TIGHT_CALENDAR_CELL_HEIGHT = 3;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const SYNODIC_MONTH = 29.53058867;
 const KNOWN_NEW_MOON_UTC = Date.UTC(2000, 0, 6, 18, 14, 0);
@@ -290,13 +297,28 @@ function CalendarPane({
   cells,
   viewMonth,
   compact,
+  denseRows,
+  tightRows,
+  fixedCellWidth,
+  onSelectDate,
 }: {
   cells: CalendarCell[][];
   viewMonth: Date;
   compact: boolean;
+  denseRows: boolean;
+  tightRows: boolean;
+  fixedCellWidth: boolean;
+  onSelectDate: (date: Date) => void;
 }) {
-  const weekGap = compact ? 0 : 1;
-  const cellMinHeight = compact ? 2 : 5;
+  const weekGap = 1;
+  const cellHeight = tightRows
+    ? TIGHT_CALENDAR_CELL_HEIGHT
+    : compact
+      ? CALENDAR_CELL_HEIGHT
+      : denseRows
+        ? DENSE_CALENDAR_CELL_HEIGHT
+        : 5;
+  const panePadding = compact ? 0 : 1;
 
   return (
     <box
@@ -304,7 +326,7 @@ function CalendarPane({
       height="100%"
       border
       borderColor="#5a6b84"
-      padding={1}
+      padding={panePadding}
       flexDirection="column"
       gap={0}
       title="Calendar"
@@ -314,9 +336,15 @@ function CalendarPane({
           {monthFormatter.format(viewMonth)}
         </text>
 
-        <box flexDirection="row" gap={1}>
+        <box flexDirection="row" gap={weekGap}>
           {WEEKDAYS.map((day) => (
-            <box key={day} flexGrow={1} alignItems="center">
+            <box
+              key={day}
+              {...(fixedCellWidth
+                ? { width: CALENDAR_CELL_WIDTH }
+                : { flexGrow: 1 })}
+              alignItems="center"
+            >
               <text fg="#f3f4f6" attributes={TextAttributes.BOLD}>
                 {day}
               </text>
@@ -329,10 +357,10 @@ function CalendarPane({
         {cells.map((week, weekIndex) => (
           <box
             key={weekIndex}
-            flexGrow={1}
             flexDirection="row"
             gap={weekGap}
-            minHeight={cellMinHeight}
+            {...(compact || denseRows ? { height: cellHeight } : { flexGrow: 1 })}
+            minHeight={cellHeight}
           >
             {week.map((cell) => {
               const fg = cell.inCurrentMonth ? "#e5eefb" : "#6c7b92";
@@ -345,14 +373,24 @@ function CalendarPane({
               return (
                 <box
                   key={cell.date.toISOString()}
-                  flexGrow={1}
+                  {...(fixedCellWidth
+                    ? { width: CALENDAR_CELL_WIDTH }
+                    : { flexGrow: 1 })}
                   height="100%"
                   border
                   borderColor={borderColor}
-                  minHeight={cellMinHeight}
+                  minHeight={cellHeight}
                   paddingLeft={compact ? 0 : 1}
                   paddingRight={compact ? 0 : 1}
                   flexDirection="column"
+                  onMouseUp={(event) => {
+                    if (event.button !== MouseButton.LEFT) {
+                      return;
+                    }
+
+                    event.stopPropagation();
+                    onSelectDate(cell.date);
+                  }}
                 >
                   <text
                     fg={fg}
@@ -363,8 +401,9 @@ function CalendarPane({
                     }
                   >
                     {String(cell.date.getUTCDate()).padStart(2, "0")}
+                    {compact || denseRows ? ` ${cell.moon.glyph}` : ""}
                   </text>
-                  {!compact && (
+                  {!compact && !denseRows && (
                     <text fg={cell.isSelected ? "#fff1a8" : "#b6c2d9"}>
                       {cell.moon.glyph}
                     </text>
@@ -401,8 +440,8 @@ function TooSmallWarning({ width, height }: { width: number; height: number }) {
           Terminal too small
         </text>
         <text fg="#aab7cf">
-          Resize the terminal to at least {MIN_TERMINAL_WIDTH}x
-          {MIN_TERMINAL_HEIGHT}.
+          Resize the terminal larger than {TOO_SMALL_TERMINAL_WIDTH}x
+          {TOO_SMALL_TERMINAL_HEIGHT}.
         </text>
         <text fg="#93a4bf">
           Current size: {width}x{height}
@@ -423,15 +462,15 @@ function App() {
   const moon = getMoonInfo(selectedDate);
   const cells = buildCalendar(viewMonth, selectedDate, today);
   const terminalTooSmall =
-    width < MIN_TERMINAL_WIDTH || height < MIN_TERMINAL_HEIGHT;
-  const showSidebar = width >= SIDEBAR_BREAKPOINT && height >= COMPACT_HEIGHT;
+    width <= TOO_SMALL_TERMINAL_WIDTH || height <= TOO_SMALL_TERMINAL_HEIGHT;
   const compact = width < SIDEBAR_BREAKPOINT || height < COMPACT_HEIGHT;
-  const sidebarWidth = showSidebar
-    ? Math.max(
-        SIDEBAR_MIN_WIDTH,
-        Math.min(SIDEBAR_MAX_WIDTH, Math.floor(width * 0.3)),
-      )
-    : 0;
+  const fixedCellWidth = width < FIXED_WIDTH_CALENDAR_BREAKPOINT;
+  const denseRows = compact || height < DENSE_CALENDAR_HEIGHT;
+  const tightRows = height < TIGHT_CALENDAR_HEIGHT;
+  const sidebarWidth = Math.max(
+    SIDEBAR_MIN_WIDTH,
+    Math.min(SIDEBAR_MAX_WIDTH, Math.floor(width * (compact ? 0.32 : 0.3))),
+  );
 
   const syncSelection = (date: Date) => {
     setSelectedDate(date);
@@ -467,13 +506,19 @@ function App() {
 
   return (
     <box width={width} height={height} flexDirection="row" gap={1}>
-      {showSidebar && (
-        <Sidebar moon={moon} selectedDate={selectedDate} width={sidebarWidth} />
-      )}
-      <CalendarPane cells={cells} viewMonth={viewMonth} compact={compact} />
+      <Sidebar moon={moon} selectedDate={selectedDate} width={sidebarWidth} />
+      <CalendarPane
+        cells={cells}
+        viewMonth={viewMonth}
+        compact={compact}
+        denseRows={denseRows}
+        tightRows={tightRows}
+        fixedCellWidth={fixedCellWidth}
+        onSelectDate={syncSelection}
+      />
     </box>
   );
 }
 
-const renderer = await createCliRenderer();
+const renderer = await createCliRenderer({ useMouse: true });
 createRoot(renderer).render(<App />);

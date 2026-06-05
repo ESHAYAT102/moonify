@@ -1,6 +1,6 @@
 {
   "name": "@esyt/moonify",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Terminal moon phase calendar built with Open TUI",
   "module": "src/index.tsx",
   "type": "module",
